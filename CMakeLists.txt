@@ -2,7 +2,7 @@
 cmake_minimum_required(VERSION 2.6)
 project(rx)
 
-set(OUT rxlib)
+set(OUT rx)
 
 set(LINKTYPE STATIC)
 
