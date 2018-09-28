@@ -7,7 +7,7 @@
 
 ----
 ## usage
-1: git clone github.com/ekknod/rx  
+1: git clone https://github.com/ekknod/rx  
 2: cd rx  
 3: mkdir build && cd build  
 4: cmake ..  
