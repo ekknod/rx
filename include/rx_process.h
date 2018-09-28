@@ -1,0 +1,42 @@
+#ifndef RX_PROCESS_H
+#define RX_PROCESS_H
+
+#include "rx_types.h"
+
+#ifdef __cplusplus
+extern "C" {
+#endif // __cplusplus
+
+int rx_find_process_id(
+    _in_     const char*       process_name
+    ) ;
+
+rx_handle rx_open_process(
+    _in_     int               pid,
+    _in_     RX_ACCESS_MASK    access_mask
+    ) ;
+
+rx_bool rx_process_exists(
+    _in_      rx_handle        process
+    ) ;
+
+__ssize_t rx_read_process(
+    _in_     rx_handle         process,
+    _in_     uintptr_t         address,
+    _out_    void              *buffer,
+    _in_     size_t            length
+    ) ;
+
+__ssize_t rx_write_process(
+    _in_     rx_handle         process,
+    _in_     uintptr_t         address,
+    _out_    void              *buffer,
+    _in_     size_t            length
+    ) ;
+
+#ifdef __cplusplus
+}
+#endif // __cplusplus
+
+#endif // RX_PROCESS_H
+

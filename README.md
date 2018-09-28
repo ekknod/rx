@@ -1,0 +1,36 @@
+# RX
+
+----
+##
+##
+**miminimal process/library/input handler for linux**
+
+----
+## usage
+1: git clone github.com/ekknod/rx  
+2: cd rx  
+3: mkdir build && cd build  
+4: cmake ..  
+5: make
+
+
+----
+## what in future?
+* input keyboard support
+* windows support ( ? )
+* better documentation
+
+----
+## features
+* list processes
+* list libraries
+* attach to processes
+* find module exports(self & target process)
+* listen / send input to mouse
+
+----
+## licence
+* free use for non commercial projects
+* credit me if you like.
+
+
