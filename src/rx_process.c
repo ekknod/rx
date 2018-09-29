@@ -23,6 +23,14 @@
 #include <fcntl.h>
 #include <string.h>
 
+
+struct link_map {
+    uintptr_t l_addr;
+    char *l_name;
+    void *l_ld;
+    struct link_map *l_next, *l_prev;
+} ;
+
 typedef struct _rx_handle {
     rx_handle_head head;
     int            value[2];
@@ -30,12 +38,11 @@ typedef struct _rx_handle {
     uintptr_t      map;
 } *rx_handle ;
 
-void rx_close_handle(rx_handle);
-
-static uintptr_t fmap(int pid);
+extern struct rtld_global *_rtld_global;
 extern int snprintf ( char * s, size_t n, const char * format, ... );
 extern void *malloc(size_t);
 extern void free(void *);
+static uintptr_t get_lmap_address(int pid);
 
 int rx_find_process_id(
     _in_     const char*       process_name
@@ -80,7 +87,7 @@ rx_handle rx_open_process(
         free(a0);
         return 0;
     }
-    a0->map = fmap(pid);
+    a0->map = get_lmap_address(pid);
     return (rx_handle)a0;
 }
 
@@ -119,19 +126,24 @@ __ssize_t rx_write_process(
     return pwrite(process->value[0], buffer, length, address);
 }
 
-static uintptr_t fmap(int pid)
+static uintptr_t get_lmap_offset(void)
 {
-    int              c;
+    struct link_map *map;
+
+    map = (void*)_rtld_global;
+    while (map->l_next)
+        map = map->l_next;
+    return (uintptr_t)_rtld_global - (uintptr_t)map->l_addr;
+}
+
+static uintptr_t get_lmap_address(int pid)
+{
     rx_handle        s;
     RX_LIBRARY_ENTRY e;
 
-    c = 3;
     s = rx_create_snapshot(RX_SNAP_TYPE_LIBRARY, pid);
-    while (c && rx_next_library(s, &e)) {
-        if (strcasecmp(e.name, "ld") >> 5 == 1)
-            c--;
-    }
+    while (rx_next_library(s, &e) && strcasecmp(e.name, "ld") >> 5 != 1);
     rx_close_handle(s);
-    return e.end + 0x170;
+    return e.start + get_lmap_offset();
 }
 
