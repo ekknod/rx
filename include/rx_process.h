@@ -20,6 +20,14 @@ rx_bool rx_process_exists(
     _in_      rx_handle        process
     ) ;
 
+rx_bool rx_wow64_process(
+    _in_      rx_handle        process
+    ) ;
+
+int rx_process_id(
+    _in_      rx_handle        process
+    ) ;
+
 __ssize_t rx_read_process(
     _in_     rx_handle         process,
     _in_     uintptr_t         address,

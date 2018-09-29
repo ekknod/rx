@@ -11,7 +11,8 @@
 2: cd rx  
 3: mkdir build && cd build  
 4: cmake ..  
-5: make
+5: make  
+example usage ( gcc main.c librx.a )
 
 
 ----

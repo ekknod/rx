@@ -35,6 +35,7 @@ typedef struct _rx_handle {
     rx_handle_head head;
     int            value[2];
     char           dir[17];
+    rx_bool        wow64;
     uintptr_t      map;
 } *rx_handle ;
 
@@ -42,7 +43,8 @@ extern struct rtld_global *_rtld_global;
 extern int snprintf ( char * s, size_t n, const char * format, ... );
 extern void *malloc(size_t);
 extern void free(void *);
-static uintptr_t get_lmap_address(int pid);
+
+static rx_bool initialize_process(rx_handle process);
 
 int rx_find_process_id(
     _in_     const char*       process_name
@@ -70,6 +72,12 @@ static void close_handle(rx_handle process)
     free(process);
 }
 
+static int open_memory(int pid, char *dir, size_t length, int access_mask)
+{
+    snprintf(dir, length, "/proc/%d/mem", pid);
+    return open(dir, access_mask);
+}
+
 rx_handle rx_open_process(
     _in_     int               pid,
     _in_     RX_ACCESS_MASK    access_mask
@@ -77,18 +85,16 @@ rx_handle rx_open_process(
 {
     rx_handle a0;
 
-    a0 = (rx_handle)malloc(sizeof(struct _rx_handle));
+    a0             = malloc(sizeof(struct _rx_handle));
     a0->head.close = close_handle;
     a0->head.self  = a0;
-    snprintf(a0->dir, sizeof(a0->dir), "/proc/%d/mem", pid);
-    a0->value[0]  = open(a0->dir, access_mask);
-    a0->value[1]  = pid;
-    if (a0->value[0] == -1) {
+    a0->value[0]   = open_memory(pid, a0->dir, sizeof(a0->dir), access_mask);
+    a0->value[1]   = pid;
+    if (a0->value[0] == -1 || !initialize_process(a0)) {
         free(a0);
         return 0;
     }
-    a0->map = get_lmap_address(pid);
-    return (rx_handle)a0;
+    return a0;
 }
 
 rx_bool rx_process_exists(
@@ -98,12 +104,28 @@ rx_bool rx_process_exists(
     return access(process->dir, F_OK ) + 1;
 }
 
+rx_bool rx_wow64_process(
+    _in_      rx_handle        process
+    )
+{
+    return process->wow64;
+}
 
 int rx_process_id(
     _in_      rx_handle        process
     )
 {
     return process->value[1];
+}
+
+//
+// shared private
+//
+uintptr_t rx_process_map_address(
+    _in_      rx_handle        process
+    )
+{
+    return process->map;
 }
 
 __ssize_t rx_read_process(
@@ -136,14 +158,31 @@ static uintptr_t get_lmap_offset(void)
     return (uintptr_t)_rtld_global - (uintptr_t)map->l_addr;
 }
 
-static uintptr_t get_lmap_address(int pid)
+static rx_bool initialize_process(rx_handle process)
 {
-    rx_handle        s;
-    RX_LIBRARY_ENTRY e;
+    rx_bool          status;
+    rx_handle        snap;
+    RX_LIBRARY_ENTRY entry;
 
-    s = rx_create_snapshot(RX_SNAP_TYPE_LIBRARY, pid);
-    while (rx_next_library(s, &e) && strcasecmp(e.name, "ld") >> 5 != 1);
-    rx_close_handle(s);
-    return e.start + get_lmap_offset();
+
+    status = 0;
+    snap   = rx_create_snapshot(RX_SNAP_TYPE_LIBRARY, rx_process_id(process));
+    if (!rx_next_library(snap, &entry))
+        goto end;
+
+    if (rx_read_process(process, entry.start + 0x12, &process->wow64, sizeof(rx_bool)) == -1)
+        goto end;
+
+    if (process->wow64 == 62) process->wow64 = 0; else process->wow64 = 1;
+    while (rx_next_library(snap, &entry)) {
+        if (strcasecmp(entry.name, "ld") >> 5 == 1) {
+            process->map = entry.start + get_lmap_offset();
+            status = 1;
+            break;
+        }
+    }
+end:
+    rx_close_handle(snap);
+    return status;
 }
 

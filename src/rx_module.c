@@ -21,12 +21,9 @@
 #include "../include/rx_process.h"
 #include <string.h>
 
-typedef struct _rx_handle {
-    rx_handle_head head;
-    int            value[2];
-    char           dir[17];
-    uintptr_t      map;
-} *rx_handle ;
+uintptr_t rx_process_map_address(
+    _in_      rx_handle        process
+    ) ;
 
 extern struct rtld_global *_rtld_global;
 
@@ -40,7 +37,7 @@ uintptr_t rx_current_module(void)
 
 int rx_module_count(void)
 {
-    return *(int*)(&_rtld_global + 0x8);
+    return *(int*)(&_rtld_global + sizeof(void*));
 }
 
 uintptr_t rx_module_base(
@@ -63,7 +60,7 @@ const char *rx_module_path(
     _in_     uintptr_t         module
     )
 {
-    return *(const char **)(module + 0x8);
+    return *(const char **)(module + sizeof(void*));
 }
 
 LONG_STRING rx_module_path_ex(
@@ -72,7 +69,7 @@ LONG_STRING rx_module_path_ex(
     )
 {
     LONG_STRING v;
-    read_ptr(process, module + 0x8, &v, sizeof(v));
+    read_ptr(process, module + sizeof(void*), &v, sizeof(v));
     return v;
 }
 
@@ -83,8 +80,8 @@ uintptr_t rx_find_module(
     uintptr_t a0;
 
     a0 = rx_current_module();
-    while ((a0 = *(uintptr_t*)(a0 + 0x18))) {
-        if (strcmp(nfp(*(const char**)(a0 + 8)), name) == 0) {
+    while ((a0 = *(uintptr_t*)(a0 + (sizeof(void*)*3)))) {
+        if (strcmp(nfp(rx_module_path(a0)), name) == 0) {
             return a0;
         }
     }
@@ -99,7 +96,7 @@ uintptr_t rx_find_module_ex(
     uintptr_t   a0;
     LONG_STRING a1;
 
-    a0 = process->map;
+    a0 = rx_process_map_address(process);
     while (rx_read_process(process, a0 + 0x18, &a0, sizeof(a0)) != -1) {
         if (read_ptr(process, a0 + 0x08, &a1, sizeof(a1)) == -1)
             break;
