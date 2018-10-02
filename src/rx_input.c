@@ -3,7 +3,7 @@
  *
  *       Filename:  rx_input.c
  *
- *    Description:  handles kbd/mouse input
+ *    Description:  handles keyboard/mouse
  *
  *        Version:  1.0
  *        Created:  27.09.2018 17:00:47
@@ -51,7 +51,7 @@ typedef struct {
 typedef struct _rx_handle {
     int                fd;
     pthread_t          thread;
-    rx_bool            buttons[7];
+    rx_bool            keys[RX_KEYCODE_LAST];
     vec2_i             axis;
 } *rx_handle ;
 
@@ -78,16 +78,16 @@ rx_open_input(
 }
 
 rx_bool
-rx_button_down(
-    _in_  rx_handle      mouse_input,
-    _in_  RX_BUTTON_CODE button
+rx_key_down(
+    _in_  rx_handle      input,
+    _in_  RX_KEYCODE     key
     )
 {
-    return mouse_input->buttons[button];
+    return input->keys[key];
 }
 
 vec2_i
-rx_mouse_axis(
+rx_input_axis(
     _in_  rx_handle      mouse_input
     )
 {
@@ -105,13 +105,13 @@ rx_send_input_axis(
 }
 
 void
-rx_send_input_button(
-    _in_  rx_handle      mouse_input,
-    _in_  RX_BUTTON_CODE button,
+rx_send_input_key(
+    _in_  rx_handle      input,
+    _in_  RX_KEYCODE     key,
     _in_  rx_bool        down
     )
 {
-    send_input(mouse_input, EV_KEY, button + 0x110, (__s32)down);
+    send_input(input, EV_KEY, key, (__s32)down);
 }
 
 static ssize_t
@@ -162,7 +162,6 @@ next_event(int fd, char *buffer, size_t length)
     return 0;
 }
 
-
 extern int snprintf ( char * s, size_t n, const char * format, ... );
 static int
 open_device(const char *name, int access_mask)
@@ -179,10 +178,11 @@ open_device(const char *name, int access_mask)
             break;
         *t = '\0';
         if (strcmp(p, name) == 0) {
-            if ((p = strchr(t + 1, ' ')) == 0)
+            if ((p = strrchr(t + 1, ' ')) == 0)
                 break;
             *p = '\0';
-            snprintf(b, 260, "/dev/input/%s", t + 1);
+            p = strchr(t + 1, 'v') - 1;
+            snprintf(b, 260, "/dev/input/%s", p);
             d = open(b, access_mask);
             break;
         }
@@ -192,7 +192,7 @@ open_device(const char *name, int access_mask)
 }
 
 static void *
-update_thread(void *input)
+mouse_thread(void *input)
 {
     struct input_event event;
     rx_handle          self;
@@ -206,10 +206,27 @@ update_thread(void *input)
                 ((int*)(&self->axis))[event.code] = event.value;
                 break;
             case EV_KEY:
-                self->buttons[event.code - 0x110] = (rx_bool)event.value;
+                self->keys[event.code] = (rx_bool)event.value;
                 break;
             default:
                 break;
+        }
+    }
+    return 0;
+}
+
+static void *
+keyboard_thread(void *input)
+{
+    struct input_event event;
+    rx_handle          self;
+
+    self = input;
+    while ( 1 ) {
+        if (read(self->fd, &event, sizeof(event)) == -1)
+            continue;
+        if (event.type == EV_KEY) {
+            self->keys[event.code] = (rx_bool)event.value;
         }
     }
     return 0;
@@ -219,16 +236,17 @@ static int
 open_input(rx_handle input, input_parameters *parameters)
 {
     const char *name;
-
+    static void*(*thread)(void *);
 
     switch (parameters->type) {
         case RX_INPUT_TYPE_MOUSE:
             name = "mouse0";
+            thread = mouse_thread;
             break;
         case RX_INPUT_TYPE_KEYBOARD:
-            // name = "kbd";
-            // break; not implemented yet
-            return -1;
+            name = "sysrq";
+            thread = keyboard_thread;
+            break;
         default:
             return -1;
     }
@@ -237,9 +255,10 @@ open_input(rx_handle input, input_parameters *parameters)
         case RX_INPUT_MODE_RECEIVE:
         case RX_INPUT_MODE_ALL:
             input->fd = open_device(name, parameters->mode);
-            if (input->fd == -1)
+            if (input->fd == -1) {
                 return -1;
-            pthread_create(&input->thread, 0, update_thread, input);
+            }
+            pthread_create(&input->thread, 0, thread, input);
             break;
         case RX_INPUT_MODE_SEND:
             input->fd = open_device(name, parameters->mode);
@@ -250,7 +269,7 @@ open_input(rx_handle input, input_parameters *parameters)
         default:
             return -1;
     }
-    memset(input->buttons, 0, sizeof(input->buttons));
+    memset(input->keys, 0, sizeof(input->keys));
     memset(&input->axis, 0, sizeof(input->axis));
     return 0;
 }

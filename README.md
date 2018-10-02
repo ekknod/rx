@@ -12,12 +12,11 @@
 3: mkdir build && cd build  
 4: cmake ..  
 5: make  
-example usage ( gcc main.c librx.a )
+* example usage ( gcc main.c librx.a )
 
 
 ----
 ## what in future?
-* input keyboard support
 * windows support ( ? )
 * better documentation
 
