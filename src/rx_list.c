@@ -22,44 +22,55 @@
 #include <string.h>
 #include <unistd.h>
 
+typedef int (*rx_init_fn)(rx_handle, void *);
+typedef void (*rx_close_fn)(rx_handle);
+rx_handle
+rx_initialize_handle(
+    _in_     rx_init_fn  on_start,
+    _in_     rx_close_fn on_close,
+    _in_opt_ void        *start_parameters,
+    _in_     size_t      size
+    ) ;
+
+typedef struct {
+    RX_SNAP_TYPE type;
+    int          pid;
+} list_parameters ;
+
 typedef struct _rx_handle {
-    rx_handle_head head;
-    char           value[8];
+    char value[12];
 } *rx_handle ;
 
-extern int snprintf ( char * s, size_t n, const char * format, ... );
-extern int atoi(const char *nptr);
-extern unsigned long int strtoul (const char* str, char** endptr, int base);
-extern void *malloc(size_t);
-extern void free(void*);
-extern int open(const char *path, int oflag, ... );
-
 #define PID_MAX 32768
+#define CDIR(snapshot) *(DIR**)&snapshot->value
+#define CFILE(snapshot) ((int*)&snapshot->value)[0]
+#define CPID(snapshot) ((int*)&snapshot->value)[1]
+#define CTYPE(snapshot) ((int*)&snapshot->value)[2]
 
-static rx_handle open_process_list(void);
-static rx_handle open_module_list(int);
+static int
+snap_create(rx_handle snapshot, list_parameters *parameters);
 
-rx_handle rx_create_snapshot(
+static void
+snap_destroy(rx_handle);
+
+rx_handle
+rx_create_snapshot(
     _in_     RX_SNAP_TYPE      type,
     _in_opt_ int               pid
     )
 {
-    rx_handle s;
+    list_parameters parameters;
 
-    switch (type) {
-        case RX_SNAP_TYPE_PROCESS:
-            s = open_process_list();
-            break;
-        case RX_SNAP_TYPE_LIBRARY:
-            s = open_module_list(pid);
-            break;
-        default:
-            s = 0;
-    }
-    return s;
+    parameters.type = type;
+    parameters.pid  = pid;
+    return rx_initialize_handle((rx_init_fn)snap_create, snap_destroy, &parameters, sizeof(struct _rx_handle));
 }
 
-rx_bool rx_next_process(
+extern int snprintf ( char * s, size_t n, const char * format, ... );
+extern int atoi(const char *nptr);
+
+rx_bool
+rx_next_process(
     _in_     rx_handle         snapshot,
     _out_    PRX_PROCESS_ENTRY entry
     )
@@ -67,7 +78,7 @@ rx_bool rx_next_process(
     struct dirent *a0;
     ssize_t       a1;
 
-    while ((a0 = readdir( *(DIR**)&snapshot->value ))) {
+    while ((a0 = readdir(CDIR(snapshot)))) {
         if (a0->d_type != 4)
             continue;
         
@@ -88,9 +99,26 @@ rx_bool rx_next_process(
     return 0;
 }
 
-static size_t read_line(rx_handle snapshot, char *buffer, size_t length) ;
+static size_t
+read_line(rx_handle snapshot, char *buffer, size_t length)
+{
+    size_t pos;
 
-rx_bool rx_next_library(
+    pos = 0;
+    while (--length > 0 && read(CFILE(snapshot), &buffer[pos], 1)) {
+        if (buffer[pos] == '\n') {
+            buffer[pos] = '\0';
+            return pos;
+        }
+        pos++;
+    }
+    return 0;
+}
+
+extern unsigned long int strtoul (const char* str, char** endptr, int base);
+
+rx_bool
+rx_next_library(
     _in_     rx_handle         snapshot,
     _out_    PRX_LIBRARY_ENTRY entry
     )
@@ -103,7 +131,7 @@ rx_bool rx_next_library(
         a0           = entry->data;
         entry->start = strtoul(entry->data, (char**)&a0, 16);
         entry->end   = strtoul(a0+1, (char**)&a0, 16);
-        entry->pid   = snapshot->value[1];
+        entry->pid   = CPID(snapshot);
         if (entry->path == 0 || entry->name++ == 0 || entry->end < entry->start)
             continue;
         return 1;
@@ -111,64 +139,44 @@ rx_bool rx_next_library(
     return 0;
 }
 
-static size_t read_line(rx_handle snapshot, char *buffer, size_t length)
-{
-    size_t pos;
+extern int open(const char *path, int oflag, ... );
 
-    pos = 0;
-    while (--length > 0 && read(((int*)&snapshot->value)[0], &buffer[pos], 1)) {
-        if (buffer[pos] == '\n') {
-            buffer[pos] = '\0';
-            return pos;
-        }
-        pos++;
+static int
+snap_create(rx_handle snapshot, list_parameters *parameters)
+{
+    char a0[17];
+
+    CTYPE(snapshot) = parameters->type;
+    switch (CTYPE(snapshot)) {
+        case RX_SNAP_TYPE_PROCESS:
+            if ((CDIR(snapshot) = opendir("/proc/")) == 0)
+                return -1;
+            break;
+        case RX_SNAP_TYPE_LIBRARY:
+            snprintf(a0, sizeof(a0), "/proc/%d/maps", parameters->pid);
+            CFILE(snapshot) = open(a0, RX_READ_ACCESS);
+            CPID(snapshot)  = parameters->pid;
+            if (CFILE(snapshot) == -1)
+                return -1;
+            break;
+        default:
+            return -1;
     }
     return 0;
 }
 
-static int open_proc_maps(int pid)
+static void
+snap_destroy(rx_handle snapshot)
 {
-    char a0[17];
-    snprintf(a0, sizeof(a0), "/proc/%d/maps", pid);
-    return open(a0, RX_READ_ACCESS);
-}
-
-static void close_phandle(rx_handle snapshot)
-{
-    closedir(*(DIR**)&snapshot->value );
-    free(snapshot);
-}
-
-static void close_mhandle(rx_handle snapshot)
-{
-    close(((int*)&snapshot->value)[0]);
-    free(snapshot);
-}
-
-static rx_handle open_process_list(void)
-{
-    rx_handle a0;
-
-    a0                    = malloc(sizeof(struct _rx_handle));
-    a0->head.close        = close_phandle;
-    a0->head.self         = a0;
-    *(DIR**)&a0->value[0] = opendir("/proc/");
-    return a0;
-}
-
-static rx_handle open_module_list(int pid)
-{
-    rx_handle a0;
-
-    a0                    = malloc(sizeof(struct _rx_handle));
-    a0->head.close        = close_mhandle;
-    a0->head.self         = a0;
-    ((int*)&a0->value)[0] = open_proc_maps(pid);
-    ((int*)&a0->value)[1] = pid;
-    if (((int*)&a0->value)[0] == -1) {
-        free(a0);
-        return 0;
+    switch (CTYPE(snapshot)) {
+        case RX_SNAP_TYPE_PROCESS:
+            closedir(CDIR(snapshot));
+            break;
+        case RX_SNAP_TYPE_LIBRARY:
+            close(CFILE(snapshot));
+            break;
+        default:
+            break;
     }
-    return a0;
 }
 

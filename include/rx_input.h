@@ -8,6 +8,7 @@
  */
 
 #include "rx_types.h"
+#include "rx_handle.h"
 
 #ifdef __cplusplus
 extern "C" {

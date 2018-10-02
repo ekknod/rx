@@ -26,7 +26,16 @@
 #include <fcntl.h>
 #include <pthread.h>
 
-static ssize_t send_input(rx_handle input, __u16 type, __u16 code, __s32 value);
+
+typedef int (*rx_init_fn)(rx_handle, void *);
+typedef void (*rx_close_fn)(rx_handle);
+rx_handle
+rx_initialize_handle(
+    _in_     rx_init_fn  on_start,
+    _in_     rx_close_fn on_close,
+    _in_opt_ void        *start_parameters,
+    _in_     size_t      size
+    ) ;
 
 struct input_event {
     struct timeval time;
@@ -34,43 +43,42 @@ struct input_event {
     __s32 value;
 } ;
 
+typedef struct {
+    RX_INPUT_TYPE type;
+    RX_INPUT_MODE mode;
+} input_parameters ;
+
 typedef struct _rx_handle {
-    rx_handle_head     head;
-    int                value[2];
+    int                fd;
     pthread_t          thread;
     rx_bool            buttons[7];
     vec2_i             axis;
 } *rx_handle ;
 
-extern int snprintf ( char * s, size_t n, const char * format, ... );
-extern void *malloc(size_t);
-extern void free(void *);
+static ssize_t
+send_input(rx_handle input, __u16 type, __u16 code, __s32 value);
 
-static rx_handle open_input(const char *name, RX_INPUT_MODE mode);
+static int
+open_input(rx_handle, input_parameters*);
 
-rx_handle rx_open_input(
+static void
+close_input(rx_handle);
+
+rx_handle
+rx_open_input(
     _in_  RX_INPUT_TYPE type,
     _in_  RX_INPUT_MODE mode
     )
 {
-    rx_handle v;
+    input_parameters parameters;
 
-    switch (type) {
-        case RX_INPUT_TYPE_MOUSE:
-            v = open_input("mouse0", mode);
-            break;
-        case RX_INPUT_TYPE_KEYBOARD:
-            // v = open_input("kbd", mode); // not implemented yet
-            v = 0;
-            break;
-        default:
-            v = 0;
-            break;
-    } ;
-    return v;
+    parameters.type = type;
+    parameters.mode = mode;
+    return rx_initialize_handle((rx_init_fn)open_input, close_input, &parameters, sizeof(struct _rx_handle));
 }
 
-rx_bool rx_button_down(
+rx_bool
+rx_button_down(
     _in_  rx_handle      mouse_input,
     _in_  RX_BUTTON_CODE button
     )
@@ -78,14 +86,16 @@ rx_bool rx_button_down(
     return mouse_input->buttons[button];
 }
 
-vec2_i rx_mouse_axis(
+vec2_i
+rx_mouse_axis(
     _in_  rx_handle      mouse_input
     )
 {
     return mouse_input->axis;
 }
 
-void rx_send_input_axis(
+void
+rx_send_input_axis(
     _in_  rx_handle      mouse_input,
     _in_  RX_MOUSE_AXIS  axis,
     _in_  int            px
@@ -94,7 +104,8 @@ void rx_send_input_axis(
     send_input(mouse_input, EV_REL, axis, px);
 }
 
-void rx_send_input_button(
+void
+rx_send_input_button(
     _in_  rx_handle      mouse_input,
     _in_  RX_BUTTON_CODE button,
     _in_  rx_bool        down
@@ -103,7 +114,8 @@ void rx_send_input_button(
     send_input(mouse_input, EV_KEY, button + 0x110, (__s32)down);
 }
 
-static ssize_t send_input(rx_handle input, __u16 type, __u16 code, __s32 value)
+static ssize_t
+send_input(rx_handle input, __u16 type, __u16 code, __s32 value)
 {
     struct  input_event start, end;
     ssize_t warning_fix;
@@ -117,12 +129,13 @@ static ssize_t send_input(rx_handle input, __u16 type, __u16 code, __s32 value)
     end.type  = EV_SYN;
     end.code  = SYN_REPORT;
     end.value = 0;
-    warning_fix = write(input->value[0], &start, sizeof(start));
-    warning_fix = write(input->value[0], &end, sizeof(end));
+    warning_fix = write(input->fd, &start, sizeof(start));
+    warning_fix = write(input->fd, &end, sizeof(end));
     return warning_fix;
 }
 
-static size_t next_event(int fd, char *buffer, size_t length)
+static size_t
+next_event(int fd, char *buffer, size_t length)
 {
     char   b[2];
     size_t len;
@@ -149,7 +162,10 @@ static size_t next_event(int fd, char *buffer, size_t length)
     return 0;
 }
 
-static int open_device(const char *name, int access_mask)
+
+extern int snprintf ( char * s, size_t n, const char * format, ... );
+static int
+open_device(const char *name, int access_mask)
 {
     int d, f; char b[260], *p, *t;
 
@@ -175,23 +191,15 @@ static int open_device(const char *name, int access_mask)
     return d;
 }
 
-static void close_handle(rx_handle handle)
-{
-    if (handle->value[1] == RX_INPUT_MODE_RECEIVE || handle->value[1] == RX_INPUT_MODE_ALL) {
-        pthread_cancel(handle->thread);
-    }
-    close(handle->value[0]);
-    free(handle);
-}
-
-static void *update_thread(void *input)
+static void *
+update_thread(void *input)
 {
     struct input_event event;
     rx_handle          self;
 
     self = input;
     while (1) {
-        if (read(self->value[0], &event, sizeof(event)) == -1)
+        if (read(self->fd, &event, sizeof(event)) == -1)
             continue;
         switch (event.type) {
             case EV_REL:
@@ -207,25 +215,52 @@ static void *update_thread(void *input)
     return 0;
 }
 
-static rx_handle open_input(const char *name, RX_INPUT_MODE mode)
+static int
+open_input(rx_handle input, input_parameters *parameters)
 {
-    rx_handle v;
+    const char *name;
 
-    v             = malloc(sizeof(struct _rx_handle));
-    v->head.close = close_handle;
-    v->head.self  = v;
-    v->value[0]   = open_device(name, mode);
-    v->value[1]   = mode;
 
-    if (v->value[0] == -1) {
-        free(v);
-        return 0;
+    switch (parameters->type) {
+        case RX_INPUT_TYPE_MOUSE:
+            name = "mouse0";
+            break;
+        case RX_INPUT_TYPE_KEYBOARD:
+            // name = "kbd";
+            // break; not implemented yet
+            return -1;
+        default:
+            return -1;
     }
-    if (mode == RX_INPUT_MODE_RECEIVE || mode == RX_INPUT_MODE_ALL) {
-        pthread_create(&v->thread, 0, update_thread, v);
+
+    switch (parameters->mode) {
+        case RX_INPUT_MODE_RECEIVE:
+        case RX_INPUT_MODE_ALL:
+            input->fd = open_device(name, parameters->mode);
+            if (input->fd == -1)
+                return -1;
+            pthread_create(&input->thread, 0, update_thread, input);
+            break;
+        case RX_INPUT_MODE_SEND:
+            input->fd = open_device(name, parameters->mode);
+            if (input->fd == -1)
+                return -1;
+            input->thread = 0;
+            break;
+        default:
+            return -1;
     }
-    memset(v->buttons, 0, sizeof(v->buttons));
-    memset(&v->axis, 0, sizeof(v->axis));
-    return v;
+    memset(input->buttons, 0, sizeof(input->buttons));
+    memset(&input->axis, 0, sizeof(input->axis));
+    return 0;
+}
+
+static void
+close_input(rx_handle input)
+{
+    if (input->thread) {
+        pthread_cancel(input->thread);
+    }
+    close(input->fd);
 }
 

@@ -32,11 +32,6 @@ typedef struct {
 
 typedef struct _rx_handle *rx_handle;
 
-void rx_close_handle(
-    _in_     rx_handle         handle
-    ) ;
-
-
 #ifdef __cplusplus
 }
 #endif // __cplusplus

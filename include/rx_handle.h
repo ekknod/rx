@@ -7,21 +7,13 @@
 #ifdef __cplusplus
 extern "C" {
 #endif // __cplusplus
-
-typedef enum _RX_HANDLE_TYPE {
-    RX_HANDLE_TYPE_NONE  = 0,
-    RX_HANDLE_TYPE_DIR   = 1,
-    RX_HANDLE_TYPE_FILE  = 2,
-    RX_HANDLE_TYPE_INPUT = 3
-} RX_HANDLE_TYPE ;
-
+typedef __SIZE_TYPE__ size_t;
 typedef struct _rx_handle *rx_handle;
 
-typedef struct {
-    void(*close)(rx_handle);
-    void *self;
-} rx_handle_head ;
-
+void
+rx_close_handle(
+    _in_  rx_handle handle
+    ) ;
 
 #ifdef __cplusplus
 }

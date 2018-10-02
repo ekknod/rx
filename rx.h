@@ -8,10 +8,6 @@
  *      process, library and input handling
  *
  * things what may need a future improvements:
- *
- *     - handle system, im not proud of how it works at this moment.
- *          reason: malloc used only for few variables
- *
  *     - input system
  *          reason: it's just not ready yet
  *
