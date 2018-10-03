@@ -296,9 +296,6 @@ typedef enum _RX_MOUSE_AXIS {
     RX_MOUSE_Y = 1
 } RX_MOUSE_AXIS ;
 
-/*
- * RX_INPUT_TYPE_KEYBOARD is not implemented yet
- */
 rx_handle rx_open_input(
     _in_  RX_INPUT_TYPE type,
     _in_  RX_INPUT_MODE mode
