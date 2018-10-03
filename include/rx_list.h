@@ -6,7 +6,7 @@
 
 #ifdef __cplusplus
 extern "C" {
-#endif //__cplusplus
+#endif /*__cplusplus */
 
 typedef enum _RX_SNAP_TYPE {
     RX_SNAP_TYPE_PROCESS = 0,
@@ -47,7 +47,7 @@ rx_bool rx_next_library(
 
 #ifdef __cplusplus
 }
-#endif // __cplusplus
+#endif /* __cplusplus */
 
-#endif // RX_LIST_H
+#endif /* RX_LIST_H */
 

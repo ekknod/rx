@@ -6,7 +6,7 @@
 
 #ifdef __cplusplus
 extern "C" {
-#endif // __cplusplus
+#endif /* __cplusplus */
 
 int rx_find_process_id(
     _in_     const char*       process_name
@@ -45,7 +45,7 @@ __ssize_t rx_write_process(
 
 #ifdef __cplusplus
 }
-#endif // __cplusplus
+#endif /* __cplusplus */
 
-#endif // RX_PROCESS_H
+#endif /* RX_PROCESS_H */
 

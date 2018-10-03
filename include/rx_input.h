@@ -1,18 +1,12 @@
 #ifndef RX_INPUT_H
 #define RX_INPUT_H
 
-/*
- * made by ekknod
- * github.com/ekknod
- *
- */
-
 #include "rx_types.h"
 #include "rx_handle.h"
 
 #ifdef __cplusplus
 extern "C" {
-#endif // __cplusplus
+#endif /* __cplusplus */
 
 typedef enum _RX_INPUT_TYPE {
     RX_INPUT_TYPE_MOUSE    = 0,
@@ -346,6 +340,7 @@ void rx_send_input_key(
 
 #ifdef __cplusplus
 }
-#endif // __cplusplus
+#endif /* __cplusplus */
 
-#endif // RX_INPUT_H
+#endif /* RX_INPUT_H */
+

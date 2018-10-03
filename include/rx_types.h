@@ -5,7 +5,7 @@
 
 #ifdef __cplusplus
 extern "C" {
-#endif // __cplusplus
+#endif /* __cplusplus */
 
 #define _in_
 #define _in_opt_
@@ -30,11 +30,11 @@ typedef struct {
     int x, y;
 } vec2_i ;
 
-typedef struct _rx_handle *rx_handle;
+typedef void *rx_handle;
 
 #ifdef __cplusplus
 }
-#endif // __cplusplus
+#endif /* __cplusplus */
 
-#endif // RX_TYPES_H
+#endif /* RX_TYPES_H */
 

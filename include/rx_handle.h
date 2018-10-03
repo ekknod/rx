@@ -6,18 +6,24 @@
 
 #ifdef __cplusplus
 extern "C" {
-#endif // __cplusplus
-typedef __SIZE_TYPE__ size_t;
-typedef struct _rx_handle *rx_handle;
+#endif /* __cplusplus */
+
+rx_handle
+rx_initialize_handle(
+    _in_     int     (*on_start)(rx_handle, void*),
+    _in_     void    (*on_close)(rx_handle),
+    _in_opt_ void    *start_parameters,
+    _in_     size_t  size
+    ) ;
 
 void
 rx_close_handle(
-    _in_  rx_handle handle
+    _in_  rx_handle  handle
     ) ;
 
 #ifdef __cplusplus
 }
-#endif // __cplusplus
+#endif /* __cplusplus */
 
-#endif // RX_HANDLE_H
+#endif /* RX_HANDLE_H */
 

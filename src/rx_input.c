@@ -26,40 +26,29 @@
 #include <fcntl.h>
 #include <pthread.h>
 
-
-typedef int (*rx_init_fn)(rx_handle, void *);
-typedef void (*rx_close_fn)(rx_handle);
-rx_handle
-rx_initialize_handle(
-    _in_     rx_init_fn  on_start,
-    _in_     rx_close_fn on_close,
-    _in_opt_ void        *start_parameters,
-    _in_     size_t      size
-    ) ;
-
 struct input_event {
     struct timeval time;
     __u16 type, code;
     __s32 value;
 } ;
 
-typedef struct {
+struct input_parameters {
     RX_INPUT_TYPE type;
     RX_INPUT_MODE mode;
-} input_parameters ;
+} ;
 
-typedef struct _rx_handle {
+struct rx_input {
     int                fd;
     pthread_t          thread;
     rx_bool            keys[RX_KEYCODE_LAST];
     vec2_i             axis;
-} *rx_handle ;
+} ;
 
 static ssize_t
 send_input(rx_handle input, __u16 type, __u16 code, __s32 value);
 
 static int
-open_input(rx_handle, input_parameters*);
+open_input(rx_handle, void*);
 
 static void
 close_input(rx_handle);
@@ -70,11 +59,11 @@ rx_open_input(
     _in_  RX_INPUT_MODE mode
     )
 {
-    input_parameters parameters;
+    struct input_parameters parameters;
 
     parameters.type = type;
     parameters.mode = mode;
-    return rx_initialize_handle((rx_init_fn)open_input, close_input, &parameters, sizeof(struct _rx_handle));
+    return rx_initialize_handle(open_input, close_input, &parameters, sizeof(struct rx_input));
 }
 
 rx_bool
@@ -83,7 +72,8 @@ rx_key_down(
     _in_  RX_KEYCODE     key
     )
 {
-    return input->keys[key];
+    struct rx_input *self = input;
+    return self->keys[key];
 }
 
 vec2_i
@@ -91,7 +81,8 @@ rx_input_axis(
     _in_  rx_handle      mouse_input
     )
 {
-    return mouse_input->axis;
+    struct rx_input *self = mouse_input;
+    return self->axis;
 }
 
 void
@@ -117,8 +108,9 @@ rx_send_input_key(
 static ssize_t
 send_input(rx_handle input, __u16 type, __u16 code, __s32 value)
 {
+    struct rx_input     *self = input;
     struct  input_event start, end;
-    ssize_t warning_fix;
+    ssize_t             wfix;
 
     gettimeofday(&start.time, 0);
     start.type  = type;
@@ -129,9 +121,9 @@ send_input(rx_handle input, __u16 type, __u16 code, __s32 value)
     end.type  = EV_SYN;
     end.code  = SYN_REPORT;
     end.value = 0;
-    warning_fix = write(input->fd, &start, sizeof(start));
-    warning_fix = write(input->fd, &end, sizeof(end));
-    return warning_fix;
+    wfix = write(self->fd, &start, sizeof(start));
+    wfix = write(self->fd, &end, sizeof(end));
+    return wfix;
 }
 
 static size_t
@@ -166,9 +158,8 @@ extern int snprintf ( char * s, size_t n, const char * format, ... );
 static int
 open_device(const char *name, int access_mask)
 {
-    int d, f; char b[260], *p, *t;
+    int d = -1, f; char b[260], *p, *t;
 
-    d = -1;
     f = open("/proc/bus/input/devices", O_RDONLY);
     while (next_event(f, b, sizeof(b))) {
         if ((p = strchr(b, '=')) == (char*)0)
@@ -194,10 +185,9 @@ open_device(const char *name, int access_mask)
 static void *
 mouse_thread(void *input)
 {
+    struct rx_input    *self = input;
     struct input_event event;
-    rx_handle          self;
 
-    self = input;
     while (1) {
         if (read(self->fd, &event, sizeof(event)) == -1)
             continue;
@@ -218,10 +208,9 @@ mouse_thread(void *input)
 static void *
 keyboard_thread(void *input)
 {
+    struct rx_input    *self = input;
     struct input_event event;
-    rx_handle          self;
 
-    self = input;
     while ( 1 ) {
         if (read(self->fd, &event, sizeof(event)) == -1)
             continue;
@@ -233,12 +222,14 @@ keyboard_thread(void *input)
 }
 
 static int
-open_input(rx_handle input, input_parameters *parameters)
+open_input(rx_handle input, void *parameters)
 {
-    const char *name;
-    static void*(*thread)(void *);
+    struct rx_input         *self   = input;
+    struct input_parameters *params = parameters;
+    const char              *name;
+    static void             *(*thread)(void *);
 
-    switch (parameters->type) {
+    switch (params->type) {
         case RX_INPUT_TYPE_MOUSE:
             name = "mouse0";
             thread = mouse_thread;
@@ -251,35 +242,36 @@ open_input(rx_handle input, input_parameters *parameters)
             return -1;
     }
 
-    switch (parameters->mode) {
+    switch (params->mode) {
         case RX_INPUT_MODE_RECEIVE:
         case RX_INPUT_MODE_ALL:
-            input->fd = open_device(name, parameters->mode);
-            if (input->fd == -1) {
+            self->fd = open_device(name, params->mode);
+            if (self->fd == -1) {
                 return -1;
             }
-            pthread_create(&input->thread, 0, thread, input);
+            pthread_create(&self->thread, 0, thread, input);
             break;
         case RX_INPUT_MODE_SEND:
-            input->fd = open_device(name, parameters->mode);
-            if (input->fd == -1)
+            self->fd = open_device(name, params->mode);
+            if (self->fd == -1)
                 return -1;
-            input->thread = 0;
+            self->thread = 0;
             break;
         default:
             return -1;
     }
-    memset(input->keys, 0, sizeof(input->keys));
-    memset(&input->axis, 0, sizeof(input->axis));
+    memset(self->keys, 0, sizeof(self->keys));
+    memset(&self->axis, 0, sizeof(self->axis));
     return 0;
 }
 
 static void
 close_input(rx_handle input)
 {
-    if (input->thread) {
-        pthread_cancel(input->thread);
+    struct rx_input *self = input;
+    if (self->thread) {
+        pthread_cancel(self->thread);
     }
-    close(input->fd);
+    close(self->fd);
 }
 

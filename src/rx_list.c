@@ -22,24 +22,14 @@
 #include <string.h>
 #include <unistd.h>
 
-typedef int (*rx_init_fn)(rx_handle, void *);
-typedef void (*rx_close_fn)(rx_handle);
-rx_handle
-rx_initialize_handle(
-    _in_     rx_init_fn  on_start,
-    _in_     rx_close_fn on_close,
-    _in_opt_ void        *start_parameters,
-    _in_     size_t      size
-    ) ;
-
-typedef struct {
+struct list_parameters {
     RX_SNAP_TYPE type;
     int          pid;
-} list_parameters ;
+} ;
 
-typedef struct _rx_handle {
+struct rx_list {
     char value[12];
-} *rx_handle ;
+} ;
 
 #define PID_MAX 32768
 #define CDIR(snapshot) *(DIR**)&snapshot->value
@@ -48,7 +38,7 @@ typedef struct _rx_handle {
 #define CTYPE(snapshot) ((int*)&snapshot->value)[2]
 
 static int
-snap_create(rx_handle snapshot, list_parameters *parameters);
+snap_create(rx_handle snapshot, void *parameters);
 
 static void
 snap_destroy(rx_handle);
@@ -59,15 +49,16 @@ rx_create_snapshot(
     _in_opt_ int               pid
     )
 {
-    list_parameters parameters;
+    struct list_parameters parameters;
 
     parameters.type = type;
     parameters.pid  = pid;
-    return rx_initialize_handle((rx_init_fn)snap_create, snap_destroy, &parameters, sizeof(struct _rx_handle));
+    return rx_initialize_handle(snap_create, snap_destroy, &parameters, sizeof(struct rx_list));
 }
 
 extern int snprintf ( char * s, size_t n, const char * format, ... );
 extern int atoi(const char *nptr);
+extern ssize_t readlink(const char *path, char *buf, size_t bufsiz); 
 
 rx_bool
 rx_next_process(
@@ -75,10 +66,11 @@ rx_next_process(
     _out_    PRX_PROCESS_ENTRY entry
     )
 {
-    struct dirent *a0;
-    ssize_t       a1;
+    struct rx_list *self = snapshot;
+    struct dirent  *a0;
+    ssize_t        a1;
 
-    while ((a0 = readdir(CDIR(snapshot)))) {
+    while ((a0 = readdir(CDIR(self)))) {
         if (a0->d_type != 4)
             continue;
         
@@ -100,11 +92,10 @@ rx_next_process(
 }
 
 static size_t
-read_line(rx_handle snapshot, char *buffer, size_t length)
+read_line(struct rx_list *snapshot, char *buffer, size_t length)
 {
-    size_t pos;
+    size_t pos = 0;
 
-    pos = 0;
     while (--length > 0 && read(CFILE(snapshot), &buffer[pos], 1)) {
         if (buffer[pos] == '\n') {
             buffer[pos] = '\0';
@@ -123,15 +114,16 @@ rx_next_library(
     _out_    PRX_LIBRARY_ENTRY entry
     )
 {
+    struct rx_list *self = snapshot;
     char *a0;
 
-    while (read_line(snapshot, entry->data, sizeof(entry->data))) {
+    while (read_line(self, entry->data, sizeof(entry->data))) {
         entry->path  = strchr(entry->data, '/');
         entry->name  = strrchr(entry->data, '/');
         a0           = entry->data;
         entry->start = strtoul(entry->data, (char**)&a0, 16);
         entry->end   = strtoul(a0+1, (char**)&a0, 16);
-        entry->pid   = CPID(snapshot);
+        entry->pid   = CPID(self);
         if (entry->path == 0 || entry->name++ == 0 || entry->end < entry->start)
             continue;
         return 1;
@@ -142,21 +134,23 @@ rx_next_library(
 extern int open(const char *path, int oflag, ... );
 
 static int
-snap_create(rx_handle snapshot, list_parameters *parameters)
+snap_create(rx_handle snapshot, void *parameters)
 {
+    struct rx_list         *self   = snapshot;
+    struct list_parameters *params = parameters;
     char a0[17];
 
-    CTYPE(snapshot) = parameters->type;
-    switch (CTYPE(snapshot)) {
+    CTYPE(self) = params->type;
+    switch (CTYPE(self)) {
         case RX_SNAP_TYPE_PROCESS:
-            if ((CDIR(snapshot) = opendir("/proc/")) == 0)
+            if ((CDIR(self) = opendir("/proc/")) == 0)
                 return -1;
             break;
         case RX_SNAP_TYPE_LIBRARY:
-            snprintf(a0, sizeof(a0), "/proc/%d/maps", parameters->pid);
-            CFILE(snapshot) = open(a0, RX_READ_ACCESS);
-            CPID(snapshot)  = parameters->pid;
-            if (CFILE(snapshot) == -1)
+            snprintf(a0, sizeof(a0), "/proc/%d/maps", params->pid);
+            CFILE(self) = open(a0, RX_READ_ACCESS);
+            CPID(self)  = params->pid;
+            if (CFILE(self) == -1)
                 return -1;
             break;
         default:
@@ -168,12 +162,13 @@ snap_create(rx_handle snapshot, list_parameters *parameters)
 static void
 snap_destroy(rx_handle snapshot)
 {
-    switch (CTYPE(snapshot)) {
+    struct rx_list *self = snapshot;
+    switch (CTYPE(self)) {
         case RX_SNAP_TYPE_PROCESS:
-            closedir(CDIR(snapshot));
+            closedir(CDIR(self));
             break;
         case RX_SNAP_TYPE_LIBRARY:
-            close(CFILE(snapshot));
+            close(CFILE(self));
             break;
         default:
             break;

@@ -21,4 +21,3 @@
 #include "include/rx_input.h"
 
 #endif // RX_H
-

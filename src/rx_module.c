@@ -26,8 +26,6 @@ uintptr_t rx_process_map_address(
     ) ;
 
 extern struct rtld_global *_rtld_global;
-
-static const char *nfp(const char *p);
 static __ssize_t read_ptr(rx_handle handle, uintptr_t address, void *buffer, size_t length);
 
 uintptr_t rx_current_module(void)
@@ -71,6 +69,12 @@ LONG_STRING rx_module_path_ex(
     LONG_STRING v;
     read_ptr(process, module + sizeof(void*), &v, sizeof(v));
     return v;
+}
+
+static const char *nfp(const char *p)
+{
+    const char *n = strrchr(p, '/');
+    return n == 0 ? p : n + 1;
 }
 
 uintptr_t rx_find_module(
@@ -144,14 +148,13 @@ uintptr_t rx_find_export_ex(
 
     if (module == 0)
         return 0;
-
     rx_read_process(process, module + 0x40 + 5 * 8, &a0, sizeof(a0));
-    rx_read_process(process, module + 0x40 + 6 * 8, &a1, sizeof(a1));
-
     rx_read_process(process, a0 + 0x8, &a0, sizeof(a0));
+    
+    rx_read_process(process, module + 0x40 + 6 * 8, &a1, sizeof(a1));
     rx_read_process(process, a1 + 0x8, &a1, sizeof(a1));
-    a1 += 0x18;
-    a2 = 1;
+    
+    a1 += 0x18, a2 = 1;
     do {
         if (rx_read_process(process, a0 + a2, &a3, sizeof(a3)) == -1)
             break;
@@ -163,13 +166,6 @@ uintptr_t rx_find_export_ex(
         a1 += 0x18;
     } while (rx_read_process(process, a1, &a2, sizeof(a2)) != -1);
     return 0;
-}
-
-static const char *nfp(const char *p)
-{
-    const char *n;
-    n = strrchr(p, '/');
-    return n == 0 ? (const char *)p : n + 1;
 }
 
 static __ssize_t read_ptr(rx_handle handle, uintptr_t address, void *buffer, size_t length)

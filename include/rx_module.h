@@ -6,7 +6,7 @@
  
 #ifdef __cplusplus
 extern "C" {
-#endif // __cplusplus
+#endif /* __cplusplus */
 
 uintptr_t rx_current_module(void);
 
@@ -53,7 +53,7 @@ uintptr_t rx_find_export_ex(
 
 #ifdef __cplusplus
 }
-#endif // __cplusplus
+#endif /* __cplusplus */
 
-#endif // RX_MODULE_H
+#endif /* RX_MODULE_H */
 
