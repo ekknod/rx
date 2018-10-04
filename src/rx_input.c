@@ -21,6 +21,7 @@
 #include <linux/types.h>
 #include <linux/input-event-codes.h>
 #include <string.h>
+#include <dirent.h>
 #include <unistd.h>
 #include <fcntl.h>
 #include <pthread.h>
@@ -128,78 +129,28 @@ send_input(rx_handle input, __u16 type, __u16 code, __s32 value)
     return wfix;
 }
 
-static size_t
-next_event(int fd, char *buffer, size_t length)
+static int
+open_device(const char *name, size_t length, int access_mask)
 {
-    size_t pos = 0;
+    int           fd = -1;
+    DIR           *d = opendir("/dev/input/by-id/");
+    struct dirent *e;
+    char          *c, p[260];
 
-    lseek(fd, 1, SEEK_CUR);
-    while (--length > 0 && read(fd, &buffer[pos], 1)) {
-        if (buffer[pos] == '\n') {
-            pos++;
-            if (read(fd, &buffer[pos], 1) && buffer[pos] == '\n') {
-                buffer[pos - 1] = '\0';
-                return pos - 1;
-            }
+    while ((e = readdir(d))) {
+        if (e->d_type != DT_LNK)
             continue;
-        }
-        pos++;
-    }
-    return 0;
-}
-
-static int
-cmp(const char *s, const char *c)
-{
-    while (*s && *s == *c) s++, c++ ;
-    return *s - *c;
-}
-
-static rx_bool
-ev_cmp(const char *s, const char *c)
-{
-    
-    s = strchr(s, 'E');
-    s = strchr(s, 'V');
-    s = strchr(s, '=') + 1;
-    if ((const char*)1 == s)
-        return 0;
-    while (*s++ == *c++) {
-        if (*c == 0 && *c == 0) {
-            return 1;
-        }
-    }
-    return 0;
-}
-
-static const char *
-ev(const char *s)
-{
-    char *c;
-
-    while (*s && cmp(s, "event") >> 5 != 1) s++;
-    if ((c = strchr(s, ' ')) == 0)
-        return "";
-    *c = '\0';
-    return s;
-}
-
-static int
-open_device(const char *name, int access_mask)
-{
-    int  dev = -1;
-    int  fd  = open("/proc/bus/input/devices", O_RDONLY);
-    char buffer[512];
-
-    while (next_event(fd, buffer, sizeof(buffer))) {
-        if (ev_cmp(buffer, name)) {
-            snprintf(buffer, 32, "/dev/input/%s", ev(buffer));
-            dev = open(buffer, access_mask);
+        c = e->d_name;
+        while (*c != '\0') c++;
+        c = c - length;
+        if (strcmp(c, name) == 0) {
+            snprintf(p, sizeof(p), "/dev/input/by-id/%s", e->d_name);
+            fd = open(p, access_mask);
             break;
         }
     }
-    close(fd);
-    return dev;
+    closedir(d);
+    return fd;
 }
 
 static void *
@@ -244,45 +195,37 @@ keyboard_thread(void *input)
 static int
 open_input(rx_handle input, void *parameters)
 {
+    int                     status  = -1;
     struct rx_input         *self   = input;
     struct input_parameters *params = parameters;
-    const char              *name;
     static void             *(*thread)(void *);
 
     switch (params->type) {
         case RX_INPUT_TYPE_MOUSE:
-            name = "17";
+            self->fd = open_device("event-mouse", 11, params->mode);
             thread = mouse_thread;
             break;
         case RX_INPUT_TYPE_KEYBOARD:
-            name = "120013";
+            self->fd = open_device("event-kbd", 9, params->mode);
             thread = keyboard_thread;
             break;
         default:
-            return -1;
+            goto end;
     }
 
-    switch (params->mode) {
-        case RX_INPUT_MODE_RECEIVE:
-        case RX_INPUT_MODE_ALL:
-            self->fd = open_device(name, params->mode);
-            if (self->fd == -1) {
-                return -1;
-            }
-            pthread_create(&self->thread, 0, thread, input);
-            break;
-        case RX_INPUT_MODE_SEND:
-            self->fd = open_device(name, params->mode);
-            if (self->fd == -1)
-                return -1;
-            self->thread = 0;
-            break;
-        default:
-            return -1;
-    }
+    status = self->fd;
+    if (status == -1)
+        goto end;
+
+    if (params->mode == RX_INPUT_MODE_SEND)
+        self->thread = 0;
+    else
+        pthread_create(&self->thread, 0, thread, input);
+
     memset(self->keys, 0, sizeof(self->keys));
     memset(&self->axis, 0, sizeof(self->axis));
-    return 0;
+end:
+    return status;
 }
 
 static void
