@@ -1,36 +1,23 @@
-# RX
-
+#RX
+#####process/library/input handler for linux
 ----
-##
-##
-**miminimal process/library/input handler for linux**
-
+##building
+* git clone https://github.com/ekknod/rx.git
+* cd rx
+* mkdir build && cd build
+* cmake ..
+* make
 ----
-## usage
-1: git clone https://github.com/ekknod/rx  
-2: cd rx  
-3: mkdir build && cd build  
-4: cmake ..  
-5: make  
-* example usage ( gcc main.c librx.a )
-
-
-----
-## what in future?
-* windows support ( ? )
+##what in future?
 * better documentation
-
+* windows support (?)
 ----
-## features
+##features
 * list processes
 * list libraries
-* attach to processes
-* find module exports(self & target process)
-* listen / send input to mouse
-
+* remote process handling ( memory, libraries, exports )
+* listen / send input ( mouse / keyboard )
 ----
-## licence
+##licence
 * free use for non commercial projects
 * credit me if you like.
-
-
