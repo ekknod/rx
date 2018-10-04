@@ -131,29 +131,57 @@ send_input(rx_handle input, __u16 type, __u16 code, __s32 value)
 static size_t
 next_event(int fd, char *buffer, size_t length)
 {
-    char   b[2];
-    size_t len;
+    size_t pos = 0;
 
-    while (read(fd, b, sizeof(b))) {
-        if (b[0] != 'H' || b[1] != ':') {
-            while (read(fd, &b[0], 1) != -1) {
-                if (b[0] == '\n') {
-                    return next_event(fd, buffer, length);
-                }
+    lseek(fd, 1, SEEK_CUR);
+    while (--length > 0 && read(fd, &buffer[pos], 1)) {
+        if (buffer[pos] == '\n') {
+            pos++;
+            if (read(fd, &buffer[pos], 1) && buffer[pos] == '\n') {
+                buffer[pos - 1] = '\0';
+                return pos - 1;
             }
-            break;
+            continue;
         }
-        lseek(fd, 1, SEEK_CUR);
-        len = 0;
-        while (--length > 0 && read(fd, &buffer[len], 1)) {
-            if (buffer[len] == '\n') {
-                buffer[len] = '\0';
-                return len;
-            }
-            len++;
+        pos++;
+    }
+    return 0;
+}
+
+static int
+cmp(const char *s, const char *c)
+{
+    while (*s && *s == *c) s++, c++ ;
+    return *s - *c;
+}
+
+static rx_bool
+ev_cmp(const char *s, const char *c)
+{
+    
+    s = strchr(s, 'E');
+    s = strchr(s, 'V');
+    s = strchr(s, '=') + 1;
+    if ((const char*)1 == s)
+        return 0;
+    while (*s++ == *c++) {
+        if (*c == 0 && *c == 0) {
+            return 1;
         }
     }
     return 0;
+}
+
+static const char *
+ev(const char *s)
+{
+    char *c;
+
+    while (*s && cmp(s, "event") >> 5 != 1) s++;
+    if ((c = strchr(s, ' ')) == 0)
+        return "";
+    *c = '\0';
+    return s;
 }
 
 static int
@@ -161,22 +189,12 @@ open_device(const char *name, int access_mask)
 {
     int  dev = -1;
     int  fd  = open("/proc/bus/input/devices", O_RDONLY);
-    char b[260], *p, *t;
+    char buffer[512];
 
-    while (next_event(fd, b, sizeof(b))) {
-        if ((p = strchr(b, '=')) == (char*)0)
-            break;
-        p += 1;
-        if ( (t = strchr(p, ' ')) == 0)
-            break;
-        *t = '\0';
-        if (strcmp(p, name) == 0) {
-            if ((p = strrchr(t + 1, ' ')) == 0)
-                break;
-            *p = '\0';
-            p = strchr(t + 1, 'v') - 1;
-            snprintf(b, 260, "/dev/input/%s", p);
-            dev = open(b, access_mask);
+    while (next_event(fd, buffer, sizeof(buffer))) {
+        if (ev_cmp(buffer, name)) {
+            snprintf(buffer, 32, "/dev/input/%s", ev(buffer));
+            dev = open(buffer, access_mask);
             break;
         }
     }
@@ -233,11 +251,11 @@ open_input(rx_handle input, void *parameters)
 
     switch (params->type) {
         case RX_INPUT_TYPE_MOUSE:
-            name = "mouse0";
+            name = "17";
             thread = mouse_thread;
             break;
         case RX_INPUT_TYPE_KEYBOARD:
-            name = "sysrq";
+            name = "120013";
             thread = keyboard_thread;
             break;
         default:
