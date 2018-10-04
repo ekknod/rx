@@ -2,16 +2,11 @@
 #define RX_H
 
 /*
- * rx library, created by: github.com/ekknod
- *
- * features:
- *      process, library and input handling
+ * rx library, created by: https://github.com/ekknod
  *
  * things what may need a future improvements:
- *     - input system
- *          reason: it's just not ready yet
- *
  *      - code cleaning
+ *      - windows support (?)
  *
  */
 
@@ -21,3 +16,4 @@
 #include "include/rx_input.h"
 
 #endif // RX_H
+

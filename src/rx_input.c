@@ -17,7 +17,6 @@
  */
 
 #include "../include/rx_input.h"
-#include "../include/rx_handle.h"
 #include <sys/time.h>
 #include <linux/types.h>
 #include <linux/input-event-codes.h>
@@ -25,6 +24,9 @@
 #include <unistd.h>
 #include <fcntl.h>
 #include <pthread.h>
+
+
+extern int snprintf ( char * s, size_t n, const char * format, ... );
 
 struct input_event {
     struct timeval time;
@@ -38,10 +40,10 @@ struct input_parameters {
 } ;
 
 struct rx_input {
-    int                fd;
-    pthread_t          thread;
-    rx_bool            keys[RX_KEYCODE_LAST];
-    vec2_i             axis;
+    int       fd;
+    pthread_t thread;
+    rx_bool   keys[RX_KEYCODE_LAST];
+    vec2_i    axis;
 } ;
 
 static ssize_t
@@ -63,7 +65,7 @@ rx_open_input(
 
     parameters.type = type;
     parameters.mode = mode;
-    return rx_initialize_handle(open_input, close_input, &parameters, sizeof(struct rx_input));
+    return rx_initialize_object(open_input, close_input, &parameters, sizeof(struct rx_input));
 }
 
 rx_bool
@@ -109,7 +111,7 @@ static ssize_t
 send_input(rx_handle input, __u16 type, __u16 code, __s32 value)
 {
     struct rx_input     *self = input;
-    struct  input_event start, end;
+    struct input_event  start, end;
     ssize_t             wfix;
 
     gettimeofday(&start.time, 0);
@@ -154,14 +156,14 @@ next_event(int fd, char *buffer, size_t length)
     return 0;
 }
 
-extern int snprintf ( char * s, size_t n, const char * format, ... );
 static int
 open_device(const char *name, int access_mask)
 {
-    int d = -1, f; char b[260], *p, *t;
+    int  dev = -1;
+    int  fd  = open("/proc/bus/input/devices", O_RDONLY);
+    char b[260], *p, *t;
 
-    f = open("/proc/bus/input/devices", O_RDONLY);
-    while (next_event(f, b, sizeof(b))) {
+    while (next_event(fd, b, sizeof(b))) {
         if ((p = strchr(b, '=')) == (char*)0)
             break;
         p += 1;
@@ -174,12 +176,12 @@ open_device(const char *name, int access_mask)
             *p = '\0';
             p = strchr(t + 1, 'v') - 1;
             snprintf(b, 260, "/dev/input/%s", p);
-            d = open(b, access_mask);
+            dev = open(b, access_mask);
             break;
         }
     }
-    close(f);
-    return d;
+    close(fd);
+    return dev;
 }
 
 static void *

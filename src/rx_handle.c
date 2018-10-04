@@ -17,24 +17,22 @@
  */
 
 #include "../include/rx_handle.h"
+#include <malloc.h>
 
-extern void *malloc(size_t);
-extern void free(void *);
-
-typedef struct _rx_cleanup {
+struct rx_cleanup {
     void (*close)(rx_handle);
-} *rx_cleanup ;
+} ;
 
 rx_handle
-rx_initialize_handle(
+rx_initialize_object(
     _in_     int     (*on_start)(rx_handle, void*),
     _in_     void    (*on_close)(rx_handle),
     _in_opt_ void    *start_parameters,
     _in_     size_t  size
     )
 {
-    rx_cleanup c = malloc(sizeof(void*) + size);
-    c++->close   = on_close;
+    struct rx_cleanup *c = malloc(sizeof(struct rx_cleanup) + size);
+    c++->close = on_close;
     if (on_start(c, start_parameters) < 0) {
         free(--c);
         return 0;
@@ -44,12 +42,12 @@ rx_initialize_handle(
 
 void
 rx_close_handle(
-    _in_  rx_handle  handle
+    _in_  rx_handle  object
     )
 {
-    rx_cleanup c = handle;
+    struct rx_cleanup *c = object;
     if (c-- != 0) {
-        c->close(handle);
+        c->close(object);
         free(c);
     }
 }

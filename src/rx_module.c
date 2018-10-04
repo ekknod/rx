@@ -16,8 +16,6 @@
  * =====================================================================================
  */
 
-#include "../include/rx_types.h"
-#include "../include/rx_handle.h"
 #include "../include/rx_process.h"
 #include <string.h>
 
@@ -81,9 +79,7 @@ uintptr_t rx_find_module(
     _in_     const char        *name
     )
 {
-    uintptr_t a0;
-
-    a0 = rx_current_module();
+    uintptr_t a0 = rx_current_module();
     while ((a0 = *(uintptr_t*)(a0 + (sizeof(void*)*3)))) {
         if (strcmp(nfp(rx_module_path(a0)), name) == 0) {
             return a0;
@@ -97,10 +93,9 @@ uintptr_t rx_find_module_ex(
     _in_     const char        *name
     )
 {
-    uintptr_t   a0;
+    uintptr_t   a0 = rx_process_map_address(process);
     LONG_STRING a1;
 
-    a0 = rx_process_map_address(process);
     while (rx_read_process(process, a0 + 0x18, &a0, sizeof(a0)) != -1) {
         if (read_ptr(process, a0 + 0x08, &a1, sizeof(a1)) == -1)
             break;
@@ -121,7 +116,7 @@ uintptr_t rx_find_export(
 
 
     if (module == 0)
-        module = rx_current_module();
+        return 0;
 
     a0 = *(uintptr_t*)(*(uintptr_t*)(module + 0x40 + 5 * 8) + 0x8);
     a1 = *(uintptr_t*)(*(uintptr_t*)(module + 0x40 + 6 * 8) + 0x8) + 0x18;
@@ -148,6 +143,7 @@ uintptr_t rx_find_export_ex(
 
     if (module == 0)
         return 0;
+
     rx_read_process(process, module + 0x40 + 5 * 8, &a0, sizeof(a0));
     rx_read_process(process, a0 + 0x8, &a0, sizeof(a0));
     

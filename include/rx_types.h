@@ -17,11 +17,14 @@ typedef enum _RX_ACCESS_MASK {
     RX_ALL_ACCESS       = 2
 } RX_ACCESS_MASK ;
 
-typedef unsigned char rx_bool;
+typedef int rx_bool;
+
 typedef __SIZE_TYPE__ size_t;
+
 typedef struct {
     char value[120];
 } SHORT_STRING ;
+
 typedef struct {
     char value[260];
 } LONG_STRING ;

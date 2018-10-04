@@ -17,7 +17,6 @@
  */
 
 #include "../include/rx_list.h"
-#include "../include/rx_handle.h"
 #include <dirent.h>
 #include <string.h>
 #include <unistd.h>
@@ -53,7 +52,7 @@ rx_create_snapshot(
 
     parameters.type = type;
     parameters.pid  = pid;
-    return rx_initialize_handle(snap_create, snap_destroy, &parameters, sizeof(struct rx_list));
+    return rx_initialize_object(snap_create, snap_destroy, &parameters, sizeof(struct rx_list));
 }
 
 extern int snprintf ( char * s, size_t n, const char * format, ... );

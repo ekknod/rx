@@ -3,13 +3,12 @@
 
 #include "rx_types.h"
 
-
 #ifdef __cplusplus
 extern "C" {
 #endif /* __cplusplus */
 
 rx_handle
-rx_initialize_handle(
+rx_initialize_object(
     _in_     int     (*on_start)(rx_handle, void*),
     _in_     void    (*on_close)(rx_handle),
     _in_opt_ void    *start_parameters,
@@ -18,7 +17,7 @@ rx_initialize_handle(
 
 void
 rx_close_handle(
-    _in_  rx_handle  handle
+    _in_  rx_handle  object
     ) ;
 
 #ifdef __cplusplus
