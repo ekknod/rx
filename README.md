@@ -1,7 +1,7 @@
-# RX  
-##### process/library/input handler for linux  
+# RX 
+##### process/library/input handler for linux
 ----
-## building  
+## building
 * git clone https://github.com/ekknod/rx.git
 * cd rx
 * mkdir build && cd build
