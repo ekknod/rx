@@ -135,15 +135,12 @@ open_device(const char *name, size_t length, int access_mask)
     int           fd = -1;
     DIR           *d = opendir("/dev/input/by-id/");
     struct dirent *e;
-    char          *c, p[260];
+    char          p[260];
 
     while ((e = readdir(d))) {
         if (e->d_type != DT_LNK)
             continue;
-        c = e->d_name;
-        while (*c != '\0') c++;
-        c = c - length;
-        if (strcmp(c, name) == 0) {
+        if (strcmp(strrchr(e->d_name, '\0') - length, name) == 0) {
             snprintf(p, sizeof(p), "/dev/input/by-id/%s", e->d_name);
             fd = open(p, access_mask);
             break;
