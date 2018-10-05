@@ -29,9 +29,6 @@ extern ssize_t pwrite (int __fd, const void *__buf, size_t __n, __off_t __offset
 extern int     snprintf ( char * s, size_t n, const char * format, ... );
 
 static int
-cmp(const char *s, const char *c);
-
-static int
 open_process(rx_handle, void *);
 
 static void
@@ -139,28 +136,13 @@ rx_find_process_id(
     RX_PROCESS_ENTRY e;
 
     while (rx_next_process(s, &e)) {
-        if (cmp(e.name, process_name) == 0) {
+        if (strcmp(e.name, process_name) == 0) {
             p = e.pid;
             break;
         }
     }
     rx_close_handle(s);
     return p;
-}
-
-static int
-cmp(const char *s, const char *c)
-{
-    while (*s && *s == *c) s++, c++ ;
-    return *s - *c;
-}
-
-static uintptr_t
-get_lmap_offset(void)
-{
-    struct link_map *map = (struct link_map *)_rtld_global;
-    while (map->l_next) map = map->l_next;
-    return (uintptr_t)_rtld_global - map->l_addr;
 }
 
 static int
@@ -181,28 +163,23 @@ open_process(rx_handle process, void *parameters)
         goto end;
 
     snap = rx_create_snapshot(RX_SNAP_TYPE_LIBRARY, rx_process_id(process));
-    if (!rx_next_library(snap, &entry))
-        goto end_all;
-    
-    if (rx_read_process(process, entry.start + 0x12, &self->wow64, 1) == -1)
-        goto end_all;
+    rx_next_library(snap, &entry);
 
-    if (self->wow64 == 62)
-        self->wow64 = 0;
-    else if (self->wow64 == 3)
-        self->wow64 = 1;
-    else
-        goto end_all;
-
-    while (rx_next_library(snap, &entry)) {
-        if (cmp(entry.name, "ld") >> 5 == 1) {
-            self->map = entry.start + get_lmap_offset();
-            status    = 0;
-            goto end_snap;
-        }
+    if (rx_read_process(process, entry.start + 0x12, &self->wow64, 1) == -1) {
+        close(self->value[0]);
+        goto end_snap;
     }
-end_all:
-    close(self->value[0]);
+
+    while (rx_next_library(snap, &entry))
+        self->map = entry.start;
+    
+    if (self->wow64 == 62) {
+        self->wow64 = 0;
+        status = rx_read_process(process, self->map + 0x60, &self->map, 8) != -1;
+    } else {
+        self->wow64 = 1;
+        status = rx_read_process(process, self->map + 0x40, &self->map, 4) != -1;
+    }
 end_snap:
     rx_close_handle(snap);
 end:

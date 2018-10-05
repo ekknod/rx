@@ -48,7 +48,9 @@ uintptr_t rx_module_base_ex(
     _in_     uintptr_t         module
     )
 {
-    rx_read_process(process, module, &module, sizeof(module));
+    int len = rx_wow64_process(process) ? 4 : 8;
+
+    rx_read_process(process, module, &module, len);
     return module;
 }
 
@@ -93,14 +95,18 @@ uintptr_t rx_find_module_ex(
     _in_     const char        *name
     )
 {
-    uintptr_t   a0 = rx_process_map_address(process);
-    LONG_STRING a1;
+    uintptr_t   map    = rx_process_map_address(process), temp = 0;
+    int         offset = rx_wow64_process(process) ? 0x0C : 0x18;
+    int         length = rx_wow64_process(process) ? 0x04 : 0x08;
+    LONG_STRING path;
 
-    while (rx_read_process(process, a0 + 0x18, &a0, sizeof(a0)) != -1) {
-        if (read_ptr(process, a0 + 0x08, &a1, sizeof(a1)) == -1)
-            break;
-        if (strcmp(nfp(a1.value), name) == 0) {
-            return a0;
+    while (rx_read_process(process, map + offset, &map, length) != -1) {
+        if (rx_read_process(process, map + length, &temp, length) == -1)
+            continue;
+        if (rx_read_process(process, temp, &path, sizeof(path)) == -1)
+            continue;
+        if (strcmp(nfp(path.value), name) == 0) {
+            return map;
         }
     }
     return 0;
@@ -111,21 +117,26 @@ uintptr_t rx_find_export(
     _in_     const char        *name
     )
 {
-    uintptr_t a0, a1;
+
+    int       offset = sizeof(void*) == 4 ? 0x20 : 0x40;
+    int       add    = sizeof(void*) == 4 ? 0x10 : 0x18;
+    int       length = sizeof(void*) == 4 ? 0x04 : 0x08;
+    uintptr_t a0;
+    uintptr_t a1;
     uint32_t  a2;
 
 
     if (module == 0)
         return 0;
 
-    a0 = *(uintptr_t*)(*(uintptr_t*)(module + 0x40 + 5 * 8) + 0x8);
-    a1 = *(uintptr_t*)(*(uintptr_t*)(module + 0x40 + 6 * 8) + 0x8) + 0x18;
+    a0 = *(uintptr_t*)(*(uintptr_t*)(module + offset + 5 * length) + length);
+    a1 = *(uintptr_t*)(*(uintptr_t*)(module + offset + 6 * length) + length) + add;
     a2 = 1;
     do {
         if (strcmp((const char*)(a0 + a2), name) == 0) {
-            return rx_module_base(module) + *(uintptr_t*)(a1 + 8);
+            return rx_module_base(module) + *(uintptr_t*)(a1 + length);
         }
-        a1 += 0x18;
+        a1 += add;
     } while ( (a2 = *(uint32_t*)(a1)) ) ;
     return 0;
 }
@@ -136,31 +147,35 @@ uintptr_t rx_find_export_ex(
     _in_     const char        *name
     )
 {
-    uintptr_t    a0, a1;
-    uint32_t     a2;
-    SHORT_STRING a3;
+    int          offset  = rx_wow64_process(process) ? 0x20 : 0x40;
+    int          add     = rx_wow64_process(process) ? 0x10 : 0x18;
+    int          length  = rx_wow64_process(process) ? 0x04 : 0x08;
+    uintptr_t    str_tab = 0;
+    uintptr_t    sym_tab = 0;
+    uint32_t     st_name = 1;
+    SHORT_STRING sym_name;
 
 
     if (module == 0)
         return 0;
 
-    rx_read_process(process, module + 0x40 + 5 * 8, &a0, sizeof(a0));
-    rx_read_process(process, a0 + 0x8, &a0, sizeof(a0));
+    rx_read_process(process, module + offset + 5 * length, &str_tab, length);
+    rx_read_process(process, str_tab + length, &str_tab, length);
     
-    rx_read_process(process, module + 0x40 + 6 * 8, &a1, sizeof(a1));
-    rx_read_process(process, a1 + 0x8, &a1, sizeof(a1));
-    
-    a1 += 0x18, a2 = 1;
+    rx_read_process(process, module + offset + 6 * length, &sym_tab, length);
+    rx_read_process(process, sym_tab + length, &sym_tab, length);
+
+    sym_tab += add;
     do {
-        if (rx_read_process(process, a0 + a2, &a3, sizeof(a3)) == -1)
+        if (rx_read_process(process, str_tab + st_name, &sym_name, sizeof(sym_name)) == -1)
             break;
-        if (strcmp(a3.value, name) == 0) {
-            rx_read_process(process, a1 + 0x8, &a1, sizeof(a1));
-            rx_read_process(process, module, &module, sizeof(module));
-            return a1 + module;
+        if (strcmp(sym_name.value, name) == 0) {
+            rx_read_process(process, sym_tab + length, &sym_tab, length);
+            rx_read_process(process, module, &module, length);
+            return sym_tab + module;
         }
-        a1 += 0x18;
-    } while (rx_read_process(process, a1, &a2, sizeof(a2)) != -1);
+        sym_tab += add;
+    } while (rx_read_process(process, sym_tab, &st_name, sizeof(st_name)) != -1) ;
     return 0;
 }
 
