@@ -112,15 +112,22 @@ uintptr_t rx_find_module_ex(
     return 0;
 }
 
+#ifdef __x86_64__
+#define OFFSET 0x40
+#define ADD    0x18
+#define LENGTH 8
+#else
+#define OFFSET 0x20
+#define ADD    0x10
+#define LENGTH 4
+#endif
+
 uintptr_t rx_find_export(
     _in_     uintptr_t         module,
     _in_     const char        *name
     )
 {
 
-    int       offset = sizeof(void*) == 4 ? 0x20 : 0x40;
-    int       add    = sizeof(void*) == 4 ? 0x10 : 0x18;
-    int       length = sizeof(void*) == 4 ? 0x04 : 0x08;
     uintptr_t a0;
     uintptr_t a1;
     uint32_t  a2;
@@ -129,14 +136,14 @@ uintptr_t rx_find_export(
     if (module == 0)
         return 0;
 
-    a0 = *(uintptr_t*)(*(uintptr_t*)(module + offset + 5 * length) + length);
-    a1 = *(uintptr_t*)(*(uintptr_t*)(module + offset + 6 * length) + length) + add;
+    a0 = *(uintptr_t*)(*(uintptr_t*)(module + OFFSET + 5 * LENGTH) + LENGTH);
+    a1 = *(uintptr_t*)(*(uintptr_t*)(module + OFFSET + 6 * LENGTH) + LENGTH) + ADD;
     a2 = 1;
     do {
         if (strcmp((const char*)(a0 + a2), name) == 0) {
-            return rx_module_base(module) + *(uintptr_t*)(a1 + length);
+            return rx_module_base(module) + *(uintptr_t*)(a1 + LENGTH);
         }
-        a1 += add;
+        a1 += ADD;
     } while ( (a2 = *(uint32_t*)(a1)) ) ;
     return 0;
 }
