@@ -95,11 +95,16 @@ uintptr_t rx_find_module_ex(
     _in_     const char        *name
     )
 {
-    uintptr_t   map    = rx_process_map_address(process), temp = 0;
-    int         offset = rx_wow64_process(process) ? 0x0C : 0x18;
-    int         length = rx_wow64_process(process) ? 0x04 : 0x08;
+    uintptr_t   map = rx_process_map_address(process), temp = 0;
+    int         offset, length;
     LONG_STRING path;
 
+
+    if (rx_wow64_process(process)) {
+        offset = 0x0C, length = 0x04;
+    } else {
+        offset = 0x18, length = 0x08;
+    }
     while (rx_read_process(process, map + offset, &map, length) != -1) {
         if (rx_read_process(process, map + length, &temp, length) == -1)
             continue;
@@ -154,17 +159,21 @@ uintptr_t rx_find_export_ex(
     _in_     const char        *name
     )
 {
-    int          offset  = rx_wow64_process(process) ? 0x20 : 0x40;
-    int          add     = rx_wow64_process(process) ? 0x10 : 0x18;
-    int          length  = rx_wow64_process(process) ? 0x04 : 0x08;
     uintptr_t    str_tab = 0;
     uintptr_t    sym_tab = 0;
     uint32_t     st_name = 1;
+    int          offset, add, length;
     SHORT_STRING sym_name;
 
 
     if (module == 0)
         return 0;
+
+    if (rx_wow64_process(process)) {
+        offset = 0x20, add = 0x10, length = 0x04;
+    } else {
+        offset = 0x40, add = 0x18, length = 0x08;
+    }
 
     rx_read_process(process, module + offset + 5 * length, &str_tab, length);
     rx_read_process(process, str_tab + length, &str_tab, length);
