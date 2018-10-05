@@ -138,7 +138,7 @@ open_device(const char *name, size_t length, int access_mask)
     char          p[260];
 
     while ((e = readdir(d))) {
-        if (e->d_type != DT_LNK)
+        if (e->d_type != 10)
             continue;
         if (strcmp(strrchr(e->d_name, '\0') - length, name) == 0) {
             snprintf(p, sizeof(p), "/dev/input/by-id/%s", e->d_name);
