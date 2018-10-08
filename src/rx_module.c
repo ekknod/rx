@@ -24,7 +24,8 @@ uintptr_t rx_process_map_address(
     ) ;
 
 extern struct rtld_global *_rtld_global;
-static __ssize_t read_ptr(rx_handle handle, uintptr_t address, void *buffer, size_t length);
+static __ssize_t
+read_ptr(rx_handle handle, uintptr_t address, void *buffer, size_t length);
 
 uintptr_t rx_current_module(void)
 {

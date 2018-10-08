@@ -15,5 +15,5 @@
 #include "include/rx_module.h"
 #include "include/rx_input.h"
 
-#endif // RX_H
+#endif /* RX_H */
 

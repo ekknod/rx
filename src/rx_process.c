@@ -28,19 +28,6 @@ extern ssize_t pread (int __fd, void *__buf, size_t __nbytes, __off_t __offset);
 extern ssize_t pwrite (int __fd, const void *__buf, size_t __n, __off_t __offset);
 extern int     snprintf ( char * s, size_t n, const char * format, ... );
 
-static int
-open_process(rx_handle, void *);
-
-static void
-close_process(rx_handle);
-
-struct link_map {
-    uintptr_t l_addr;
-    char *l_name;
-    void *l_ld;
-    struct link_map *l_next, *l_prev;
-} ;
-
 struct process_parameters {
     int            pid;
     RX_ACCESS_MASK access_mask;
@@ -52,6 +39,12 @@ struct rx_process {
     rx_bool        wow64;
     uintptr_t      map;
 } ;
+
+static int
+open_process(rx_handle, void *);
+
+static void
+close_process(rx_handle);
 
 rx_handle
 rx_open_process(
