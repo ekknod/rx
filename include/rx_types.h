@@ -17,9 +17,11 @@ typedef enum _RX_ACCESS_MASK {
     RX_ALL_ACCESS       = 2
 } RX_ACCESS_MASK ;
 
+typedef void *rx_handle;
 typedef int rx_bool;
 
 typedef __SIZE_TYPE__ size_t;
+typedef __ssize_t     ssize_t;
 
 typedef struct {
     char value[120];
@@ -33,7 +35,6 @@ typedef struct {
     int x, y;
 } vec2_i ;
 
-typedef void *rx_handle;
 
 #ifdef __cplusplus
 }

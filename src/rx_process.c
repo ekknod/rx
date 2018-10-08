@@ -95,7 +95,7 @@ rx_process_map_address(
     return self->map;
 }
 
-__ssize_t
+ssize_t
 rx_read_process(
     _in_     rx_handle         process,
     _in_     uintptr_t         address,
@@ -107,7 +107,7 @@ rx_read_process(
     return pread(self->value[0], buffer, length, address);
 }
 
-__ssize_t
+ssize_t
 rx_write_process(
     _in_     rx_handle         process,
     _in_     uintptr_t         address,
@@ -117,25 +117,6 @@ rx_write_process(
 {
     struct rx_process *self = process;
     return pwrite(self->value[0], buffer, length, address);
-}
-
-int
-rx_find_process_id(
-    _in_     const char*       process_name
-    )
-{
-    int              p = -1;
-    rx_handle        s = rx_create_snapshot(RX_SNAP_TYPE_PROCESS, 0);
-    RX_PROCESS_ENTRY e;
-
-    while (rx_next_process(s, &e)) {
-        if (strcmp(e.name, process_name) == 0) {
-            p = e.pid;
-            break;
-        }
-    }
-    rx_close_handle(s);
-    return p;
 }
 
 static int

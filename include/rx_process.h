@@ -8,10 +8,6 @@
 extern "C" {
 #endif /* __cplusplus */
 
-int rx_find_process_id(
-    _in_     const char*       process_name
-    ) ;
-
 rx_handle rx_open_process(
     _in_     int               pid,
     _in_     RX_ACCESS_MASK    access_mask
@@ -29,14 +25,14 @@ int rx_process_id(
     _in_      rx_handle        process
     ) ;
 
-__ssize_t rx_read_process(
+ssize_t rx_read_process(
     _in_     rx_handle         process,
     _in_     uintptr_t         address,
     _out_    void              *buffer,
     _in_     size_t            length
     ) ;
 
-__ssize_t rx_write_process(
+ssize_t rx_write_process(
     _in_     rx_handle         process,
     _in_     uintptr_t         address,
     _out_    void              *buffer,
