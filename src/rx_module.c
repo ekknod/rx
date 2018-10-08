@@ -24,8 +24,6 @@ uintptr_t rx_process_map_address(
     ) ;
 
 extern struct rtld_global *_rtld_global;
-static __ssize_t
-read_ptr(rx_handle handle, uintptr_t address, void *buffer, size_t length);
 
 uintptr_t rx_current_module(void)
 {
@@ -67,8 +65,12 @@ LONG_STRING rx_module_path_ex(
     _in_     uintptr_t         module
     )
 {
+    int len = rx_wow64_process(process) ? 4 : 8;
+    uintptr_t a = 0;
     LONG_STRING v;
-    read_ptr(process, module + sizeof(void*), &v, sizeof(v));
+
+    rx_read_process(process, module + len, &a, len);
+    rx_read_process(process, a, &v, sizeof(v));
     return v;
 }
 
@@ -194,12 +196,5 @@ uintptr_t rx_find_export_ex(
         sym_tab += add;
     } while (rx_read_process(process, sym_tab, &st_name, sizeof(st_name)) != -1) ;
     return 0;
-}
-
-static __ssize_t read_ptr(rx_handle handle, uintptr_t address, void *buffer, size_t length)
-{
-    uintptr_t a0;
-    rx_read_process(handle, address, &a0, sizeof(a0));
-    return rx_read_process(handle, a0, buffer, length);
 }
 
